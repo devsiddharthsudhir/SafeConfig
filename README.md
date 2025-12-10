@@ -1,76 +1,83 @@
-````markdown
 # SafeConfig
 
-> **SafeConfig** is a type-safe configuration _compiler_ and static analysis engine for service & infrastructure configs.  
+> **SafeConfig** is a type-safe configuration *compiler* and static analysis engine for service & infrastructure configs.
 > It turns human-friendly YAML into a validated intermediate representation (IR), runs security & reliability rules, and produces actionable reports.
 
 ---
 
 ## Table of Contents
 
-1. [Context & Motivation](#context--motivation)  
-2. [Key Features](#key-features)  
-3. [Architecture Overview](#architecture-overview)  
-4. [Repository Layout](#repository-layout)  
-5. [Getting Started](#getting-started)  
-6. [CLI Usage](#cli-usage)  
-7. [Configuration Model](#configuration-model)  
-8. [Rule Engine & Examples](#rule-engine--examples)  
-9. [Extensibility](#extensibility)  
-10. [Quality, Testing & Tooling](#quality-testing--tooling)  
-11. [Roadmap](#roadmap)  
+1. [Context & Motivation](#context--motivation)
+2. [Key Features](#key-features)
+3. [Architecture Overview](#architecture-overview)
+4. [Repository Layout](#repository-layout)
+5. [Getting Started](#getting-started)
+6. [CLI Usage](#cli-usage)
+7. [Configuration Model](#configuration-model)
+8. [Rule Engine & Examples](#rule-engine--examples)
+9. [Extensibility](#extensibility)
+10. [Quality, Testing & Tooling](#quality-testing--tooling)
+11. [Roadmap](#roadmap)
 12. [Why This Project Matters (For Reviewers)](#why-this-project-matters-for-reviewers)
 
 ---
 
 ## Context & Motivation
 
-Modern backends are composed of many services: API gateways, databases, workers, queues, and internal tools.  
+Modern backends are composed of many services: API gateways, databases, workers, queues, and internal tools.
 Their **configuration** (YAML / JSON / Helm values / compose files) quietly encodes:
 
-- Which services are public vs private  
-- Which ports and hosts they bind to  
-- Which protocols are used (HTTP vs HTTPS)  
-- How data and traffic flow between them  
+* Which services are public vs private
+* Which ports and hosts they bind to
+* Which protocols are used (HTTP vs HTTPS)
+* How data and traffic flow between them
 
 Misconfigurations here lead directly to:
 
-- Publicly exposed databases  
-- Non-TLS endpoints on internet-facing services  
-- Inconsistent environments between dev/stage/prod  
+* Publicly exposed databases
+* Non-TLS endpoints on internet-facing services
+* Inconsistent environments between dev/stage/prod
 
-**SafeConfig** is built to catch these issues _before_ they reach production, by treating configuration as code and running it through a **compiler-style pipeline**.
+**SafeConfig** is built to catch these issues *before* they reach production, by treating configuration as code and running it through a **compiler-style pipeline**.
 
 ---
 
 ## Key Features
 
 1. **Typed Configuration Compiler**
-   - Parses human-readable YAML into a **strongly-typed IR (Intermediate Representation)** using TypeScript and Zod.
-   - Normalizes different configuration shapes into a single canonical model.
+
+   * Parses human-readable YAML into a **strongly-typed IR (Intermediate Representation)** using TypeScript and Zod.
+   * Normalizes different configuration shapes into a single canonical model.
 
 2. **Static Analysis & Policy Engine**
-   - Runs a rules engine over the IR to enforce **security and reliability invariants**.
-   - Example rules:
-     - `R1_NO_PUBLIC_DB`: No database service should be directly reachable from the internet.
-     - `R2_PUBLIC_REQUIRES_TLS`: Public-facing services must expose at least one TLS-enabled endpoint.
+
+   * Runs a rules engine over the IR to enforce **security and reliability invariants**.
+   * Example rules:
+
+     * `R1_NO_PUBLIC_DB`: No database service should be directly reachable from the internet.
+     * `R2_PUBLIC_REQUIRES_TLS`: Public-facing services must expose at least one TLS-enabled endpoint.
 
 3. **Developer-Friendly CLI**
-   - Single entry-point CLI to analyze configs:
+
+   * Single entry-point CLI to analyze configs:
+
      ```bash
      npm run cli -- analyze ./examples/sample-config.yaml --format yaml
      ```
-   - Human-readable text output and machine-consumable formats.
+   * Human-readable text output and machine-consumable formats.
 
 4. **Deterministic Hashing of Configs**
-   - Computes a stable **config hash** (e.g., `Config hash: 9a3ef3d9a2dd`) so changes across commits/environments are easily tracked.
+
+   * Computes a stable **config hash** (e.g., `Config hash: 9a3ef3d9a2dd`) so changes across commits/environments are easily tracked.
 
 5. **CI/CD Ready**
-   - Designed to be dropped into GitHub Actions / GitLab CI / any pipeline to **fail builds** on policy violations.
+
+   * Designed to be dropped into GitHub Actions / GitLab CI / any pipeline to **fail builds** on policy violations.
 
 6. **Extensible by Design**
-   - New rules are just pure functions over the IR.
-   - Easy to support new config formats or sources while reusing the same compiler core.
+
+   * New rules are just pure functions over the IR.
+   * Easy to support new config formats or sources while reusing the same compiler core.
 
 ---
 
@@ -79,40 +86,49 @@ Misconfigurations here lead directly to:
 At a high level, SafeConfig behaves like a small compiler:
 
 1. **Input Layer**
-   - Reads one or more YAML configuration files.
-   - Handles basic IO and error reporting.
+
+   * Reads one or more YAML configuration files.
+   * Handles basic IO and error reporting.
 
 2. **Parsing & Validation**
-   - Uses [`js-yaml`](https://github.com/nodeca/js-yaml) to parse YAML into raw JS objects.
-   - Uses [`zod`](https://github.com/colinhacks/zod) schemas to:
-     - Validate shape and required fields.
-     - Provide clear, structured validation errors.
-   - Produces a well-typed `ConfigIR`.
+
+   * Uses [`js-yaml`](https://github.com/nodeca/js-yaml) to parse YAML into raw JS objects.
+   * Uses [`zod`](https://github.com/colinhacks/zod) schemas to:
+
+     * Validate shape and required fields.
+     * Provide clear, structured validation errors.
+   * Produces a well-typed `ConfigIR`.
 
 3. **Intermediate Representation (IR)**
-   - Structures configuration into:
-     - `Service` objects (name, type, protocol, exposure, bindings, metadata, …)
-     - `NetworkBinding` objects (host, port, protocol, tlsEnabled, …)
-   - This IR is the core contract for rules and future backends.
+
+   * Structures configuration into:
+
+     * `Service` objects (name, type, protocol, exposure, bindings, metadata, …)
+     * `NetworkBinding` objects (host, port, protocol, tlsEnabled, …)
+   * This IR is the core contract for rules and future backends.
 
 4. **Rule Engine**
-   - Each rule is a function: `(config: ConfigIR) => RuleResult[]`.
-   - Rules can be labeled by:
-     - ID (e.g., `R1_NO_PUBLIC_DB`)
-     - Severity (`LOW` | `MEDIUM` | `HIGH`)
-     - Category (`security`, `networking`, `reliability`, …)
+
+   * Each rule is a function: `(config: ConfigIR) => RuleResult[]`.
+   * Rules can be labeled by:
+
+     * ID (e.g., `R1_NO_PUBLIC_DB`)
+     * Severity (`LOW` | `MEDIUM` | `HIGH`)
+     * Category (`security`, `networking`, `reliability`, …)
 
 5. **Reporting**
-   - Aggregates results into a final report:
-     - Summary stats: number of services, hash of config.
-     - List of rule violations with severity and target.
-     - CLI-printable + format-specific serializations (e.g., YAML).
+
+   * Aggregates results into a final report:
+
+     * Summary stats: number of services, hash of config.
+     * List of rule violations with severity and target.
+     * CLI-printable + format-specific serializations (e.g., YAML).
 
 ---
 
 ## Repository Layout
 
-> _This is a representative layout; exact structure may evolve as the project grows._
+> *This is a representative layout; exact structure may evolve as the project grows.*
 
 ```bash
 safeconfig/
@@ -133,7 +149,7 @@ safeconfig/
     package.json
     tsconfig.json
     README.md                   # (You are here)
-````
+```
 
 ---
 
@@ -142,7 +158,7 @@ safeconfig/
 ### 1. Prerequisites
 
 * **Node.js** ≥ 18 (recommended: 20.x)
-* **npm** or **pnpm** (your choice)
+* **npm** or **pnpm**
 * Git (if cloning from GitHub)
 
 ### 2. Clone & Install
@@ -189,7 +205,7 @@ Services: 3
   [HIGH] R1_NO_PUBLIC_DB @ user-db -> Database service is exposed publicly (host=0.0.0.0 or marked public). Databases should not be directly reachable from the internet.
 ```
 
-### Flags (current behavior)
+### Flags
 
 * `--format <format>`
 
@@ -299,7 +315,7 @@ SafeConfig is deliberately modular:
 
 3. **Integrating with CI/CD**
 
-Example: a minimal GitHub Actions workflow could look like:
+Example: a minimal GitHub Actions workflow:
 
 ```yaml
 name: SafeConfig Analysis
@@ -389,7 +405,7 @@ Planned/possible extensions:
 
 * Shows applied computing skills in:
 
-  * **Static analysis & program reasoning** (but for configs instead of traditional code).
+  * **Static analysis & program reasoning** (for configs instead of traditional code).
   * **Formalizing real-world constraints** (e.g., “no public DB”) as enforceable rules.
   * **Software engineering discipline**: clear architecture, CLI design, and scope for research-style extensions (e.g., generating formal proofs, policy languages, or visualizations).
 
@@ -399,6 +415,3 @@ SafeConfig is intentionally positioned between **practical DevOps tooling** and 
 
 *Authored & maintained by **Siddharth Sudhir**.*
 Feel free to open issues, suggest new rules, or fork the project to adapt it to your own configuration formats.
-
-```
-```
