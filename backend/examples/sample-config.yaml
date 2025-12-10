@@ -1,0 +1,39 @@
+services:
+  - name: api-gateway
+    type: api
+    public: true
+    handlesPII: false
+    network:
+      - host: "0.0.0.0"
+        port: 80
+        protocol: "http"
+    dependsOn: ["user-service"]
+    resourceLimits:
+      cpu: 1
+      memoryMb: 512
+
+  - name: user-service
+    type: api
+    public: false
+    handlesPII: true
+    network:
+      - host: "internal"
+        port: 8080
+        protocol: "http"
+    dependsOn: ["user-db"]
+    resourceLimits:
+      cpu: 1
+      memoryMb: 512
+
+  - name: user-db
+    type: db
+    public: false
+    handlesPII: true
+    network:
+      - host: "0.0.0.0"
+        port: 5432
+        protocol: "tcp"
+    dependsOn: []
+    resourceLimits:
+      cpu: 2
+      memoryMb: 2048
